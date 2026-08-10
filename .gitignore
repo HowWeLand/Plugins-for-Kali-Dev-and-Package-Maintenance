@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Test / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node (MCP Inspector and any TS tooling pulled in ad hoc)
+node_modules/
+
+# Editors
+.idea/
+.vscode/
+*~
+*.swp
+
+# Claude Code local (per-user settings never belong in the repo)
+.claude/settings.local.json
+
+# Local MCP workdirs/configs must never land in-repo — the real
+# sources.toml lives outside the tree; only sources.example.toml is tracked
+sources.toml

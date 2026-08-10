@@ -106,7 +106,7 @@ break, and it's why our logging setup is part of the scaffold, not an afterthoug
   "mcpServers": {
     "git-sources": {
       "command": "/usr/bin/python3",
-      "args": ["-m", "git_sources_mcp", "--config", "/etc/git-sources-mcp/sources.toml"]
+      "args": ["-m", "git_sources_mcp", "--config", "/home/user1138/Projects/kali-mate-dev/sources.toml"]
     }
   }
 }
@@ -116,7 +116,7 @@ break, and it's why our logging setup is part of the scaffold, not an afterthoug
 # Codex CLI — ~/.codex/config.toml
 [mcp_servers.git-sources]
 command = "/usr/bin/python3"
-args = ["-m", "git_sources_mcp", "--config", "/etc/git-sources-mcp/sources.toml"]
+args = ["-m", "git_sources_mcp", "--config", "/home/user1138/Projects/kali-mate-dev/sources.toml"]
 ```
 
 ```jsonc
@@ -125,7 +125,7 @@ args = ["-m", "git_sources_mcp", "--config", "/etc/git-sources-mcp/sources.toml"
   "mcpServers": {
     "git-sources": {
       "command": "/usr/bin/python3",
-      "args": ["-m", "git_sources_mcp", "--config", "/etc/git-sources-mcp/sources.toml"]
+      "args": ["-m", "git_sources_mcp", "--config", "/home/user1138/Projects/kali-mate-dev/sources.toml"]
     }
   }
 }
@@ -139,13 +139,19 @@ in examples, so nothing exploitable gets copy-pasted later.
 ## 4. The allowlist is the capability grant
 
 The single most important design decision: **tools take package names, never URLs.**
-The mapping from name → remote URL lives only in a root-reviewed config file:
+The mapping from name → remote URL lives only in a config file whose changes land by
+reviewed PR (the live copy is user-owned at sandbox tier 1 — see the workdir note
+below):
 
 ```toml
-# /etc/git-sources-mcp/sources.toml
+# /home/user1138/Projects/kali-mate-dev/sources.toml
 # Adding a line here IS granting the capability — changes land by PR like code.
 
-workdir = "/var/lib/git-sources-mcp"   # the only path the server may write under
+# The only path the server may write under. Decided (Jay, 2026-08-10): project
+# dirs live in $HOME — easier to build in, and less risky than system paths.
+# Clones go in a dedicated subdir so the server's write boundary never mingles
+# with human-managed build dirs alongside it.
+workdir = "/home/user1138/Projects/kali-mate-dev/sources"
 
 [packages.wayfire]
 upstream   = "https://github.com/WayfireWM/wayfire"
@@ -317,9 +323,14 @@ mcp-servers/git_sources_mcp/
      already exists for it; record in `knowledge/` once BTS tooling is up).
    - Everything else is deliberately excluded — already built and maintained by other
      people; tracking it would be scope creep.
-2. **Workdir location** — `/var/lib/git-sources-mcp` (system-ish, implies setup) vs.
-   something under the user running the client (lighter, fits sandbox tier 1). Tier-1
-   leaning, but it's your box layout.
+2. **Workdir location — ANSWERED (Jay, 2026-08-10).** Project directories live in
+   Jay's home: `/home/user1138/Projects/kali-mate-dev`. Easier to build in, and less
+   risky than system paths — no privileged setup, and the server can't write anywhere
+   its user couldn't already. This is sandbox tier 1 by construction. The server's
+   own write boundary (`workdir` in `sources.toml`) is the dedicated `sources/`
+   subdirectory underneath, so clones never mingle with human-managed build dirs
+   beside them. If this ever migrates to a stricter tier, the config moves to a
+   root-owned path at the same time.
 3. **Shallow vs. full clones** — full history is exactly what archaeology needs ("when
    was this dropped?"), so the default leaning is full clones; shallow would only save
    disk. The recurse-the-whole-shebang requirement for wayfire reinforces full clones.

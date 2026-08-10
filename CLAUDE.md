@@ -20,6 +20,7 @@ plugins/       Claude Code plugin(s) bundling the pieces below
 mcp-servers/   MCP servers exposing scoped access to knowledge sources
 skills/        Skills for recurring packaging workflows
 agents/        Agent (subagent) definitions for delegated tasks
+knowledge/     Shared per-package findings (archaeology, BTS, provenance) — see knowledge/README.md
 docs/          Design notes, decisions, provenance conventions
 ```
 

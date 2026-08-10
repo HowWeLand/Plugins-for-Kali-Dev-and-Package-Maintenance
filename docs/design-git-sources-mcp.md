@@ -148,13 +148,27 @@ The mapping from name → remote URL lives only in a root-reviewed config file:
 workdir = "/var/lib/git-sources-mcp"   # the only path the server may write under
 
 [packages.wayfire]
-upstream = "https://github.com/WayfireWM/wayfire"
-salsa    = "https://salsa.debian.org/debian/wayfire"
+upstream   = "https://github.com/WayfireWM/wayfire"
+salsa      = "https://salsa.debian.org/debian/wayfire"   # verify path when generating the real file
+submodules = true   # wayfire vendors wf-config/wf-utils/wf-touch as git submodules
+
+[packages.wlroots]
+# Moved under the freedesktop umbrella — git clone is the sane way for an AI
+# to reach this code. Plain `git clone` is host-agnostic, so a GitLab URL
+# needs nothing special from the server.
+upstream = "https://gitlab.freedesktop.org/wlroots/wlroots"
 
 [packages.mate-panel]
 upstream = "https://github.com/mate-desktop/mate-panel"
 salsa    = "https://salsa.debian.org/debian-mate-team/mate-panel"
 ```
+
+A package may set `submodules = true`; `gitsrc_sync` then clones with
+`--recurse-submodules` and updates submodules on every fetch. This stays per-package
+and explicit — a submodule pulls whatever URLs the upstream's `.gitmodules` names, so
+enabling it is knowingly delegating that hop of trust to the named upstream, and the
+sync report lists which submodule URLs were actually pulled so the delegation stays
+visible.
 
 Consequences, in threat-model terms:
 
@@ -195,7 +209,7 @@ context window.
 | Tool | What it does |
 |------|--------------|
 | `gitsrc_list_packages` | Show the allowlist: package names, which remotes each has, whether each is synced locally and how fresh. The discovery entry point — "what am I allowed to touch?" |
-| `gitsrc_sync` | Clone (first time) or fetch (after) one package's named remote into the workdir. The only tool that touches the network. Reports before/after tip commits. |
+| `gitsrc_sync` | Clone (first time) or fetch (after) one package's named remote into the workdir, recursing into submodules when the package's config says `submodules = true`. The only tool that touches the network. Reports before/after tip commits and any submodule URLs pulled. |
 | `gitsrc_log` | Commit history for a synced repo: `ref`, `path` filter, `grep` filter, pagination. |
 | `gitsrc_show_file` | One file's content at a ref (`HEAD` default). Size-capped with a clear "file is N KB, showing first M lines — use offset" message rather than silent truncation. |
 | `gitsrc_list_tree` | Directory listing at a ref — orientation before `show_file`/`grep`. |
@@ -282,12 +296,30 @@ mcp-servers/git_sources_mcp/
 
 ## 7. Open questions for Jay
 
-1. **Initial allowlist contents** — which packages go into `sources.toml` first? The
-   MATE stack + wayfire seems obvious; the OpenRC-adjacent set from Project 1 is still
-   emerging.
+1. **Initial allowlist contents — ANSWERED (Jay, 2026-08-10).** The seed set is:
+   - **The full MATE ecosystem** — the `mate-desktop` GitHub org upstream, paired with
+     the `debian-mate-team` Salsa repos. Enumerated explicitly, repo by repo, in
+     `sources.toml` (the list can be *generated* once from the org, but it lands
+     checked-in and reviewed — no org-wildcard grant, so a new repo appearing upstream
+     never enters scope without a diff).
+   - **wayfire** with `submodules = true`, so one sync pulls its vendored dependency
+     tree (wf-config, wf-utils, wf-touch).
+   - **wlroots** — `https://gitlab.freedesktop.org/wlroots/wlroots`. The library whose
+     release churn is the stability risk for the whole Wayfire thread, now under the
+     freedesktop umbrella; a git clone is the practical way to put its code in front
+     of an AI. Its own build dependencies (wayland, pixman, libdrm, …) are already
+     packaged in Debian and are *not* tracked here.
+   - **Wayfire decoration plugins:**
+     `https://github.com/marcof-nikogo/wf-external-decoration` and
+     `https://github.com/marcof-nikogo/metacity-decor` — both render Marco/metacity
+     window decorations under Wayfire — plus
+     `https://github.com/timgott/wayfire-shadows` (note: Debian ITP bug **#1070471**
+     already exists for it; record in `knowledge/` once BTS tooling is up).
+   - Everything else is deliberately excluded — already built and maintained by other
+     people; tracking it would be scope creep.
 2. **Workdir location** — `/var/lib/git-sources-mcp` (system-ish, implies setup) vs.
    something under the user running the client (lighter, fits sandbox tier 1). Tier-1
    leaning, but it's your box layout.
 3. **Shallow vs. full clones** — full history is exactly what archaeology needs ("when
    was this dropped?"), so the default leaning is full clones; shallow would only save
-   disk. Any reason to prefer shallow for the big repos?
+   disk. The recurse-the-whole-shebang requirement for wayfire reinforces full clones.

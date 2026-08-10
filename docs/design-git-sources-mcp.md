@@ -331,6 +331,19 @@ mcp-servers/git_sources_mcp/
    subdirectory underneath, so clones never mingle with human-managed build dirs
    beside them. If this ever migrates to a stricter tier, the config moves to a
    root-owned path at the same time.
+
+   **Tier-upgrade path (Jay):** a container can be mounted at
+   `/home/user1138/Projects/kali-mate-dev`, bounding blast radius further (tier 2)
+   with zero config changes — every path stays identical inside and outside the
+   container, so all three clients are indifferent to whether it's there.
+   Threat-model note, on record: container escape is explicitly *not* in scope —
+   this is a personal project, not a hardened target. The adversary that is in
+   scope is opportunistic prompt injection via fetched content, and that is
+   addressed at the capability layer (tools can't name a URL; the allowlist can't
+   be widened at runtime). What the container adds is a bound on the *other*
+   realistic risk: this workdir fills with third-party code, and anything that
+   ever builds or executes from it (hostile `meson.build`, test scripts) is
+   contained to the mount rather than the whole home directory.
 3. **Shallow vs. full clones** — full history is exactly what archaeology needs ("when
    was this dropped?"), so the default leaning is full clones; shallow would only save
    disk. The recurse-the-whole-shebang requirement for wayfire reinforces full clones.

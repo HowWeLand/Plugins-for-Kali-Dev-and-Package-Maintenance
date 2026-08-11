@@ -106,7 +106,7 @@ break, and it's why our logging setup is part of the scaffold, not an afterthoug
   "mcpServers": {
     "git-sources": {
       "command": "/usr/bin/python3",
-      "args": ["-m", "git_sources_mcp", "--config", "/etc/git-sources-mcp/sources.toml"]
+      "args": ["-m", "git_sources_mcp", "--config", "/home/user1138/Projects/kali-mate-dev/sources.toml"]
     }
   }
 }
@@ -116,7 +116,7 @@ break, and it's why our logging setup is part of the scaffold, not an afterthoug
 # Codex CLI — ~/.codex/config.toml
 [mcp_servers.git-sources]
 command = "/usr/bin/python3"
-args = ["-m", "git_sources_mcp", "--config", "/etc/git-sources-mcp/sources.toml"]
+args = ["-m", "git_sources_mcp", "--config", "/home/user1138/Projects/kali-mate-dev/sources.toml"]
 ```
 
 ```jsonc
@@ -125,7 +125,7 @@ args = ["-m", "git_sources_mcp", "--config", "/etc/git-sources-mcp/sources.toml"
   "mcpServers": {
     "git-sources": {
       "command": "/usr/bin/python3",
-      "args": ["-m", "git_sources_mcp", "--config", "/etc/git-sources-mcp/sources.toml"]
+      "args": ["-m", "git_sources_mcp", "--config", "/home/user1138/Projects/kali-mate-dev/sources.toml"]
     }
   }
 }
@@ -139,22 +139,42 @@ in examples, so nothing exploitable gets copy-pasted later.
 ## 4. The allowlist is the capability grant
 
 The single most important design decision: **tools take package names, never URLs.**
-The mapping from name → remote URL lives only in a root-reviewed config file:
+The mapping from name → remote URL lives only in a config file whose changes land by
+reviewed PR (the live copy is user-owned at sandbox tier 1 — see the workdir note
+below):
 
 ```toml
-# /etc/git-sources-mcp/sources.toml
+# /home/user1138/Projects/kali-mate-dev/sources.toml
 # Adding a line here IS granting the capability — changes land by PR like code.
 
-workdir = "/var/lib/git-sources-mcp"   # the only path the server may write under
+# The only path the server may write under. Decided (Jay, 2026-08-10): project
+# dirs live in $HOME — easier to build in, and less risky than system paths.
+# Clones go in a dedicated subdir so the server's write boundary never mingles
+# with human-managed build dirs alongside it.
+workdir = "/home/user1138/Projects/kali-mate-dev/sources"
 
 [packages.wayfire]
-upstream = "https://github.com/WayfireWM/wayfire"
-salsa    = "https://salsa.debian.org/debian/wayfire"
+upstream   = "https://github.com/WayfireWM/wayfire"
+salsa      = "https://salsa.debian.org/debian/wayfire"   # verify path when generating the real file
+submodules = true   # wayfire vendors wf-config/wf-utils/wf-touch as git submodules
+
+[packages.wlroots]
+# Moved under the freedesktop umbrella — git clone is the sane way for an AI
+# to reach this code. Plain `git clone` is host-agnostic, so a GitLab URL
+# needs nothing special from the server.
+upstream = "https://gitlab.freedesktop.org/wlroots/wlroots"
 
 [packages.mate-panel]
 upstream = "https://github.com/mate-desktop/mate-panel"
 salsa    = "https://salsa.debian.org/debian-mate-team/mate-panel"
 ```
+
+A package may set `submodules = true`; `gitsrc_sync` then clones with
+`--recurse-submodules` and updates submodules on every fetch. This stays per-package
+and explicit — a submodule pulls whatever URLs the upstream's `.gitmodules` names, so
+enabling it is knowingly delegating that hop of trust to the named upstream, and the
+sync report lists which submodule URLs were actually pulled so the delegation stays
+visible.
 
 Consequences, in threat-model terms:
 
@@ -195,7 +215,7 @@ context window.
 | Tool | What it does |
 |------|--------------|
 | `gitsrc_list_packages` | Show the allowlist: package names, which remotes each has, whether each is synced locally and how fresh. The discovery entry point — "what am I allowed to touch?" |
-| `gitsrc_sync` | Clone (first time) or fetch (after) one package's named remote into the workdir. The only tool that touches the network. Reports before/after tip commits. |
+| `gitsrc_sync` | Clone (first time) or fetch (after) one package's named remote into the workdir, recursing into submodules when the package's config says `submodules = true`. The only tool that touches the network. Reports before/after tip commits and any submodule URLs pulled. |
 | `gitsrc_log` | Commit history for a synced repo: `ref`, `path` filter, `grep` filter, pagination. |
 | `gitsrc_show_file` | One file's content at a ref (`HEAD` default). Size-capped with a clear "file is N KB, showing first M lines — use offset" message rather than silent truncation. |
 | `gitsrc_list_tree` | Directory listing at a ref — orientation before `show_file`/`grep`. |
@@ -282,12 +302,48 @@ mcp-servers/git_sources_mcp/
 
 ## 7. Open questions for Jay
 
-1. **Initial allowlist contents** — which packages go into `sources.toml` first? The
-   MATE stack + wayfire seems obvious; the OpenRC-adjacent set from Project 1 is still
-   emerging.
-2. **Workdir location** — `/var/lib/git-sources-mcp` (system-ish, implies setup) vs.
-   something under the user running the client (lighter, fits sandbox tier 1). Tier-1
-   leaning, but it's your box layout.
+1. **Initial allowlist contents — ANSWERED (Jay, 2026-08-10).** The seed set is:
+   - **The full MATE ecosystem** — the `mate-desktop` GitHub org upstream, paired with
+     the `debian-mate-team` Salsa repos. Enumerated explicitly, repo by repo, in
+     `sources.toml` (the list can be *generated* once from the org, but it lands
+     checked-in and reviewed — no org-wildcard grant, so a new repo appearing upstream
+     never enters scope without a diff).
+   - **wayfire** with `submodules = true`, so one sync pulls its vendored dependency
+     tree (wf-config, wf-utils, wf-touch).
+   - **wlroots** — `https://gitlab.freedesktop.org/wlroots/wlroots`. The library whose
+     release churn is the stability risk for the whole Wayfire thread, now under the
+     freedesktop umbrella; a git clone is the practical way to put its code in front
+     of an AI. Its own build dependencies (wayland, pixman, libdrm, …) are already
+     packaged in Debian and are *not* tracked here.
+   - **Wayfire decoration plugins:**
+     `https://github.com/marcof-nikogo/wf-external-decoration` and
+     `https://github.com/marcof-nikogo/metacity-decor` — both render Marco/metacity
+     window decorations under Wayfire — plus
+     `https://github.com/timgott/wayfire-shadows` (note: Debian ITP bug **#1070471**
+     already exists for it; record in `knowledge/` once BTS tooling is up).
+   - Everything else is deliberately excluded — already built and maintained by other
+     people; tracking it would be scope creep.
+2. **Workdir location — ANSWERED (Jay, 2026-08-10).** Project directories live in
+   Jay's home: `/home/user1138/Projects/kali-mate-dev`. Easier to build in, and less
+   risky than system paths — no privileged setup, and the server can't write anywhere
+   its user couldn't already. This is sandbox tier 1 by construction. The server's
+   own write boundary (`workdir` in `sources.toml`) is the dedicated `sources/`
+   subdirectory underneath, so clones never mingle with human-managed build dirs
+   beside them. If this ever migrates to a stricter tier, the config moves to a
+   root-owned path at the same time.
+
+   **Tier-upgrade path (Jay):** a container can be mounted at
+   `/home/user1138/Projects/kali-mate-dev`, bounding blast radius further (tier 2)
+   with zero config changes — every path stays identical inside and outside the
+   container, so all three clients are indifferent to whether it's there.
+   Threat-model note, on record: container escape is explicitly *not* in scope —
+   this is a personal project, not a hardened target. The adversary that is in
+   scope is opportunistic prompt injection via fetched content, and that is
+   addressed at the capability layer (tools can't name a URL; the allowlist can't
+   be widened at runtime). What the container adds is a bound on the *other*
+   realistic risk: this workdir fills with third-party code, and anything that
+   ever builds or executes from it (hostile `meson.build`, test scripts) is
+   contained to the mount rather than the whole home directory.
 3. **Shallow vs. full clones** — full history is exactly what archaeology needs ("when
    was this dropped?"), so the default leaning is full clones; shallow would only save
-   disk. Any reason to prefer shallow for the big repos?
+   disk. The recurse-the-whole-shebang requirement for wayfire reinforces full clones.

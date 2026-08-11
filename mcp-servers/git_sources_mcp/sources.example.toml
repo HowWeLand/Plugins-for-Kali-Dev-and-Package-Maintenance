@@ -1,0 +1,51 @@
+# sources.toml — the allowlist for git_sources_mcp.
+#
+# Adding a line here IS granting a capability: tools take package names, and
+# this file is the only place a name resolves to a URL. Changes land by
+# reviewed PR (repo copy: sources.example.toml); the live copy sits outside
+# any git checkout so it is never accidentally committed (.gitignore also
+# blocks the name 'sources.toml' as a second layer).
+#
+# Rules enforced by the loader:
+#   - workdir must be an absolute path (ground rule 5)
+#   - remotes must be https:// (credential-less https is what makes the
+#     server structurally unable to push)
+#   - package names: Debian source-package charset, no slashes
+#
+# Seed set decided by Jay, 2026-08-10 (design doc §7.1). The full MATE
+# ecosystem enumeration (mate-desktop org + debian-mate-team Salsa) extends
+# the pattern shown by mate-panel/marco below — one entry per repo, no org
+# wildcards, so new upstream repos never enter scope without a diff here.
+
+workdir = "/home/user1138/Projects/kali-mate-dev/sources"
+
+[packages.wayfire]
+upstream   = "https://github.com/WayfireWM/wayfire"
+salsa      = "https://salsa.debian.org/debian/wayfire"   # verify path before first sync
+submodules = true   # vendors wf-config/wf-utils/wf-touch as git submodules
+
+[packages.wlroots]
+# The library whose release churn is the stability risk for the Wayfire
+# thread. Lives under the freedesktop umbrella; plain git clone is
+# host-agnostic, so the GitLab URL needs nothing special.
+upstream = "https://gitlab.freedesktop.org/wlroots/wlroots"
+
+# Wayfire decoration plugins (Marco/metacity decorations + shadows).
+[packages.wf-external-decoration]
+upstream = "https://github.com/marcof-nikogo/wf-external-decoration"
+
+[packages.metacity-decor]
+upstream = "https://github.com/marcof-nikogo/metacity-decor"
+
+[packages.wayfire-shadows]
+# Debian ITP #1070471 exists for this one — check BTS state before packaging.
+upstream = "https://github.com/timgott/wayfire-shadows"
+
+# MATE ecosystem — two entries shown; extend one-per-repo for the full org.
+[packages.mate-panel]
+upstream = "https://github.com/mate-desktop/mate-panel"
+salsa    = "https://salsa.debian.org/debian-mate-team/mate-panel"
+
+[packages.marco]
+upstream = "https://github.com/mate-desktop/marco"
+salsa    = "https://salsa.debian.org/debian-mate-team/marco"

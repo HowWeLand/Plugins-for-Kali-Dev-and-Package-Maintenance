@@ -69,10 +69,11 @@ decides it:
 - **Learning surface.** Python keeps the distance between "what you read" and "what
   executes" short — no build step, no type-erasure layer, no `node_modules`.
 
-We use **FastMCP** from the official `mcp` Python SDK: it turns a decorated, type-hinted
-function into a registered tool, generating the JSON Schema from the type hints and the
-description from the docstring. (We'll hand-roll one raw JSON-RPC exchange in a test
-first, so the abstraction lands after the mechanics are visible.)
+We use the official `mcp` Python SDK's high-level server class — named **FastMCP** in
+SDK 1.x, renamed **`MCPServer`** in SDK 2.0, which is what we target — it turns a
+decorated, type-hinted function into a registered tool, generating the JSON Schema from
+the type hints and the description from the docstring. (We hand-roll one raw JSON-RPC
+exchange in a test first, so the abstraction lands after the mechanics are visible.)
 
 Server name follows the SDK convention `{service}_mcp` → **`git_sources_mcp`**. Tool
 names carry the prefix `gitsrc_` so they can't collide with other servers' tools when a
@@ -344,6 +345,6 @@ mcp-servers/git_sources_mcp/
    realistic risk: this workdir fills with third-party code, and anything that
    ever builds or executes from it (hostile `meson.build`, test scripts) is
    contained to the mount rather than the whole home directory.
-3. **Shallow vs. full clones** — full history is exactly what archaeology needs ("when
-   was this dropped?"), so the default leaning is full clones; shallow would only save
-   disk. The recurse-the-whole-shebang requirement for wayfire reinforces full clones.
+3. **Shallow vs. full clones — ANSWERED (2026-08-10): full clones.** Full history is
+   exactly what archaeology needs ("when was this dropped?"); shallow would only save
+   disk, and the recurse-the-whole-shebang requirement for wayfire reinforced it.

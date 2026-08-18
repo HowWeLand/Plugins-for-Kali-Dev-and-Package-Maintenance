@@ -60,6 +60,31 @@ logs the failures from the session that produced this document. All seven were
 within grants, none was caught by any mechanism, and every one was a framing error
 rather than an execution error.
 
+### 1.2 The containment is imposed, not operated
+
+The jail is not infrastructure agents use. It is infrastructure they are placed in,
+built and controlled by the level above. This is a stronger statement than least
+privilege, and it has a hard consequence:
+
+**There is no inside-facing control surface.** An agent cannot request a spawn,
+cannot request or observe its own reaping, cannot enumerate its own grants, cannot
+see the supervision tree, and has no channel to the supervisor of any kind. Not a
+restricted channel — none.
+
+This is not defence in depth; it is the removal of a category. Whole classes of
+problem stop existing rather than being mitigated:
+
+- The confused deputy at the reap boundary has nowhere to live, because no request
+  crosses it. Role templates (formerly §6.1) mitigated a channel that should not
+  exist.
+- Grant escalation by persuasion is unreachable: there is nothing to persuade.
+- An agent cannot reason about its own confinement to work around it, because the
+  confinement is not visible to it.
+
+Design test to apply to any addition to this framework: *does this give the thing
+inside a way to talk to the thing holding it?* If yes, it is wrong by construction,
+however well validated the channel is.
+
 ---
 
 ## 2. The four concepts
@@ -301,37 +326,52 @@ For a hand-reviewed framework this is an acceptable trade; it is still a trade.
 Agent identity is a fiction worth discarding. Each invocation is a fresh forward
 pass; continuity is reconstructed from context either way, so killing and
 respawning costs nothing that was real. Continuity that matters is *human*
-auditability, and forcing handoff through a written record delivers that better
-than in-process memory: nothing carries over invisibly, so ground rule 8 falls out
-of the architecture instead of being bolted on.
+auditability, and forcing everything an invocation produced into a written deposit
+delivers that better than in-process memory: nothing carries over invisibly, so
+ground rule 8 falls out of the architecture instead of being bolted on. The record
+exists for the curator on the outside, not for a successor — no invocation is
+owed it.
 
 ```
-spawn (role template)  →  read bus + knowledge  →  work  →  post findings  →  cgroup.kill
-                                                                                    ↓
-                                            successor spawns fresh, reads what was posted
+operator spawns  →  served bus + knowledge  →  work  →  deposits findings  →  cgroup.kill
+      ↑                                                          ↓
+      └───────────  operator curates, promotes, spawns next  ────┘
 ```
 
-### 6.1 Who signs the spawn request
+Read it as a loop closed *outside* the tree, not a chain of agents handing off to
+one another. The successor does not receive anything from its predecessor; it is
+served what the curator retained.
 
-**The reap boundary is where authority is assigned and no human is watching, so it
-is the boundary injection will target.**
+### 6.1 Nothing signs a spawn request, because there is no request
 
-Therefore: a spawn request names a **pre-registered role**, never a grant set. The
-supervisor holds role→grants. Roles are human-vetted artifacts — ground rule 3's
-"fixed and vetted beforehand," applied to authority instead of scripts. A request
-may say `instantiate archaeologist`; it may never say `instantiate something that
-can write to the package tree`.
+An earlier draft asked who may sign a spawn request and answered "a pre-registered
+role name, never a grant set." That was mitigation of a channel that §1.2 removes
+outright.
 
-Corollary: a dying agent may not influence its successor's grants, directly or by
-writing a suggestion somewhere that something else acts on. Delegation, where it
-exists at all, attenuates — never widens.
+**Spawning is initiated only from outside the tree** — by Jay, or by a fixed,
+human-vetted schedule. No agent, living or dying, emits anything the supervisor
+consumes as a request. Consequences:
+
+- A dying agent cannot influence its successor's grants, because no artifact it
+  produces is read as authority (§8.1 makes the same guarantee at the data layer:
+  the bus has no imperative field to abuse).
+- Role→grant mappings remain human-vetted artifacts (ground rule 3), but their
+  role is now *configuration the operator selects*, not *a request vocabulary the
+  inside may draw on*.
+- Attenuation rules are moot. There is no delegation to attenuate, because there
+  is no delegation.
+
+The reap boundary remains the point where authority changes. It is safe not
+because requests crossing it are validated, but because nothing crosses it.
 
 ### 6.2 The cost curve
 
-Every reap makes the successor pay full re-orientation. Too little in the handoff
-and findings get re-derived three times; too much and the bus has reinvented an
-ever-growing context by another name. This tension — not injection — is the real
-design constraint on the message format (§8).
+Every reap makes the next invocation pay full re-orientation. Deposit too little
+and findings get re-derived three times; retain too much and the served context has
+reinvented an ever-growing session by another name. Note where the lever sits: an
+invocation controls only what it deposits, while what any later one *receives* is
+the curator's decision (§8). This tension — not injection — is the real design
+constraint on the message format.
 
 ---
 
@@ -371,8 +411,16 @@ context most regretted later, especially for anything volunteered upstream.
 ## 8. Bus protocol
 
 Inspired by the agent-social-network idea, stripped of the anthropomorphic
-theatre: it is message passing between invocations, chunked and processed to
-**lower, not eliminate**, prompt injection.
+theatre — and per §1.2 the theatre has to go all the way. This is **not**
+correspondence between peers. Agents have no correspondents.
+
+It is a **dead drop**: invocations deposit into a staging area, and the level above
+decides what is retained, what is promoted (§3.2), and what any later invocation is
+served. A deposit is not addressed to anyone and carries no expectation of being
+read. Nothing is delivered; material is *served*, by a curator on the outside, to
+whatever it chooses to serve it to.
+
+Content is chunked and processed to **lower, not eliminate**, prompt injection.
 
 ### 8.1 The bus expresses findings, never authority
 

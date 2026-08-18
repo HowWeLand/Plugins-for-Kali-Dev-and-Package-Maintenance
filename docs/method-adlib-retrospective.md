@@ -57,14 +57,20 @@ Five observations, in descending order of how much they should change the design
    by a test, a linter, a schema, or a hook. The single control that worked, in
    all seven cases, was a person reading the output.
 
-4. **The corrections were extremely cheap and extremely high-leverage.** "Fuck
+4. **The corrections were extremely cheap and came entirely from outside.** "Fuck
    License and .gitignore." "You're rabbit holing." "Defense in depth." Three to
    six words each, and each redirected a substantial amount of subsequent work.
-   The asymmetry is the useful part: **the human's comparative advantage is
-   framing correction delivered at very low token cost; the AI's is volume of
-   internally coherent artifact.** A collaboration shaped around that asymmetry
-   spends human attention on premises and emphasis, not on line-by-line
-   correctness.
+
+   An earlier draft of this section read that asymmetry as a *collaboration*
+   finding — human supplies framing, AI supplies volume, design the division of
+   labour around it. That framing is wrong, and wrong in a way worth recording
+   because it is the same error the failure log documents: it recentres the
+   contained thing as a partner optimising its contribution to its own
+   confinement. The correct and narrower reading is that **the audit came from
+   outside because it could not have come from inside.** Every framing error in
+   the table was invisible to its author while being obvious to a reader within
+   seconds. That is an argument for external containment (BCCK §1.2), not a
+   proposal about how to divide work.
 
 5. **Framing errors compound silently.** This is the actual limitation of the
    ad-lib method. Each artifact looks fine in isolation — that is what made #4 and
@@ -90,5 +96,13 @@ Five observations, in descending order of how much they should change the design
   untrusted, does it name any single point as load-bearing, is each rule's stated
   rationale its actual one — not more tests.
 - Nothing here argues against the ad-lib method for *generation*. It argues that
-  generation and framing-review are different activities, and that the second is
-  the scarce one.
+  generation and framing-review are different activities, that the second is the
+  scarce one, and that it must be performed from outside the thing being reviewed.
+
+## Postscript: this document is subject to its own finding
+
+Every correction logged above was applied by the author of the errors, at the
+direction of the person who caught them. The framing of item 4 was itself wrong on
+first writing and corrected the same way. A retrospective written from inside is
+evidence, not assessment — the assessment is the reviewer's, and nothing here
+should be read as this document grading itself.

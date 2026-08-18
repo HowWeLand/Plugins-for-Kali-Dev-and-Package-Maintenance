@@ -103,12 +103,24 @@ agent discovers  →  posts a CLAIM (bus, untrusted, carries evidence)
 Same instinct as "open a PR, don't merge," applied to facts instead of code
 (ground rule 2).
 
-### 3.3 Enforced by the kernel, not by prose
+### 3.3 Enforced by the kernel, not by prose — in depth
 
-The knowledge corpus is a **read-only bind mount** inside the agent's namespace.
-An agent attempting to violate the hierarchy receives `EROFS`, not a stern
-paragraph in its prompt. This is the whole point of §5: the hierarchy is a mount
-table, not an instruction.
+The hierarchy is a mount table, not an instruction. But no single mechanism is
+asked to carry it. Five independent layers, in order of when they bite:
+
+1. **No path at all.** Where knowledge is served through a read capability rather
+   than a filesystem, the corpus is not in the agent's namespace and there is
+   nothing to address.
+2. **Read-only bind mount** where it is mounted — `EROFS`.
+3. **DAC ownership.** The corpus is owned by a uid the agent does not run as, so
+   a writable mount still denies the write.
+4. **Promotion is a separate role** (§3.2). A successful write to a staging area
+   is still not knowledge; canonization happens a level up.
+5. **Detectability.** Corpora are git-tracked, so an unauthorized change is
+   visible after the fact even if every preceding layer failed.
+
+None of these is the one that matters. That is the point: a failure in any single
+layer degrades the property rather than collapsing it.
 
 ### 3.4 The hierarchy terminates at the human
 
@@ -167,10 +179,12 @@ accounting and limits, and gives `cgroup.kill`: write `1`, every process in it
 dies atomically — no signal races, no walking a process tree, no window in which
 something forks while the kill is in flight.
 
-This is also what closes the double-fork hole properly. A double-forked orphan
-escapes its *parent*, which is why level 0 reparents; it cannot escape its
-*cgroup*, because membership is inherited and unchangeable without privilege.
-`cgroup.kill` is the primary reap; level-0 reparenting is the backstop.
+Reaping is likewise layered rather than singular. A double-forked orphan escapes
+its *parent* but not its *cgroup* (membership is inherited and unchangeable
+without privilege), and not its *PID namespace* (whose init reaps it regardless of
+who its parent became). `cgroup.kill`, PID-namespace reparenting, and level-0
+subreaping are three mechanisms covering overlapping cases — not one primary with
+two spares.
 
 ### 5.3 Reaping
 
@@ -427,7 +441,7 @@ reviewer should confirm before the design leans on it.
 | 6 | An agent holding only a pipe write-end cannot reach `s6-log`'s files *(upstream claim — skarnet)* | §5.5 — the stronger Tarski boundary | inspect the agent's `/proc/self/fd`; attempt to open the log path |
 | 7 | OpenRC supports `supervisor="s6"` as documented | Project 1 tie-in | OpenRC docs and source for the shipped version |
 
-Claim 5 is the one to check first. It is the single point on which the Tarski rule
-rests, and it is the one most sensitive to kernel version and user-namespace
-configuration — if it does not hold as stated, §3.3 needs a different mechanism
-rather than a caveat.
+**How to read this table.** These are not gates. Every property above sits in a
+layered stack (§3.3, §5.2), so an unverified or falsified claim tells you which
+layer is thinner than assumed — not whether the design stands. Verify in whatever
+order is convenient; nothing here blocks writing the rest of the framework.

@@ -55,6 +55,11 @@ Two design rules follow, and they outrank convenience:
    beat many small ones that each need a human pass. Volume is a cost, not a
    throughput metric.
 
+Evidence for this section, rather than assertion: `method-adlib-retrospective.md`
+logs the failures from the session that produced this document. All seven were
+within grants, none was caught by any mechanism, and every one was a framing error
+rather than an execution error.
+
 ---
 
 ## 2. The four concepts

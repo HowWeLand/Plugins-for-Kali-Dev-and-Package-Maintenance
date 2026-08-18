@@ -4,6 +4,11 @@
 decisions land; this file is the model everything else in the repo is designed
 against.
 
+**Authorship posture:** written by an author who does not execute it. Drafting and
+running are deliberately separated — verification is Jay's, with outside-the-tree
+review. Consequence for how this is written: no claim rests on "it worked when I
+tried it," and anything empirical is listed in §12 rather than asserted.
+
 **Supersedes:** nothing yet, but it re-frames `design-git-sources-mcp.md` — see §9.
 
 ---
@@ -193,9 +198,52 @@ hundreds of milliseconds to start an agent.
 ### 5.5 Logging
 
 A **catch-all logger at the tree level**, not a logger per invocation — one
-append-only stream per tree, no logger churn as agents cycle. Tarski-consistent by
-construction: the log is written by the level above the agent, so an invocation
-cannot forge its own audit trail even in principle (§3.1).
+append-only stream per tree, no logger churn as agents cycle.
+
+The enforcement is stronger than "the level above writes it." The idiom is a
+**pipe**: the supervised process receives a *write end* as fd 1, and `s6-log` — a
+separate process, separately privileged — owns the log files. The agent never
+holds a path to its own log, so it cannot address the storage behind the pipe at
+all. This is Tarski (§3.1) enforced by **fd topology**, which is a harder boundary
+than the read-only mount of §3.3: a mount can at least be named by the process it
+constrains. Rotation lives in `s6-log` too, so an agent cannot fill the disk by
+logging.
+
+### 5.6 Why s6 specifically
+
+Four properties, in descending order of how load-bearing they are:
+
+1. **Small TCB.** The supervision layer is the trusted computing base for the
+   entire authorization argument in §2.2 and §3. Given the review posture — manual
+   review plus outside-the-tree help, nothing executed by its author — a TCB a
+   human can read end to end is what makes that review meaningful rather than
+   ceremonial. This is a difference in kind, not degree, from auditing systemd's
+   PID 1.
+2. **Chain loading leaves no privileged parent.** Because execline chain-loads —
+   each step `exec`s the next rather than forking — namespace entry, uid drop, and
+   cgroup move consume the privileged process rather than spawning from it. No
+   privileged parent survives holding a handle to the constrained child, which is
+   the residue a fork-based setup leaves behind.
+3. **Allocation discipline in the supervision loop.** The steady-state loop does
+   not allocate, so a supervisor cannot die under memory pressure — the failure
+   that would otherwise take the supervision guarantee with it. Corollary for
+   §5.2: a fixed, known supervision footprint means the tree's `memory.max` can be
+   set tightly and any overage attributed to the agent rather than to overhead.
+4. **Independent, separately privileged logging.** See §5.5.
+
+**Provenance of 3 and 4:** both are properties **claimed by s6's author**, not
+measured here. Upstream's account of its own design intent is good evidence of
+what the software is *trying* to guarantee, and skarnet's track record makes it
+credible — but an author's claim is not verification, and these two carry weight
+in the security argument, so they stay in §12 until someone checks them locally
+(rule 8: record where a claim came from at the moment it is borrowed).
+
+**The cost, stated honestly:** s6 does less. There is no declarative sandboxing
+vocabulary comparable to systemd's `Protect*` / `Restrict*` / `SystemCallFilter`
+directives — every such constraint is composed by hand through chain loading, so
+what systemd gives as a reviewed default becomes something this framework must get
+right itself. Ergonomics are spartan, and execline is unpleasant until it clicks.
+For a hand-reviewed framework this is an acceptable trade; it is still a trade.
 
 ---
 
@@ -359,3 +407,27 @@ not a replacement for it.
    first, and does the generator live in this repo or in the plugin?
 5. **s6 version** — confirm instanced-service tooling in the s6 Kali ships, and
    confirm OpenRC's `supervisor="s6"` backend for the Project 1 tie-in.
+
+---
+
+## 12. Claims to verify
+
+Everything in this repo is written by an author who does not execute it: drafting
+and running are separated on purpose, and verification belongs to Jay and to
+outside-the-tree review. Nothing below has been observed — each is a claim that a
+reviewer should confirm before the design leans on it.
+
+| # | Claim | Where it matters | How to check |
+|---|---|---|---|
+| 1 | s6's steady-state supervision loop performs no dynamic allocation *(upstream claim — skarnet)* | §5.6.3 — justifies tight `memory.max` and "supervisor cannot OOM" | read `s6-supervise` / skalibs source; observe RSS over a churn cycle |
+| 2 | `cgroup.kill` reliably kills double-forked descendants | §5.2 — the primary reap; the whole "poof" story | spawn a double-forking child, write `1`, confirm nothing survives |
+| 3 | Instanced services (`s6-instance-create` / `-delete`) exist and are dynamic in the shipped s6 version | §5.4 — invocation churn without recompiling an s6-rc database | `s6-instance-create --help`; check the package version |
+| 4 | Namespace teardown is complete when the last process exits | §5.2 — the "no pollution" guarantee | check `/proc/*/ns/*` refcounts before and after a tree dies |
+| 5 | A read-only bind mount cannot be remounted rw from inside a user namespace by an unprivileged agent | §3.3 — Tarski's enforcement | attempt `mount -o remount,rw` as the agent uid inside the tree |
+| 6 | An agent holding only a pipe write-end cannot reach `s6-log`'s files *(upstream claim — skarnet)* | §5.5 — the stronger Tarski boundary | inspect the agent's `/proc/self/fd`; attempt to open the log path |
+| 7 | OpenRC supports `supervisor="s6"` as documented | Project 1 tie-in | OpenRC docs and source for the shipped version |
+
+Claim 5 is the one to check first. It is the single point on which the Tarski rule
+rests, and it is the one most sensitive to kernel version and user-namespace
+configuration — if it does not hold as stated, §3.3 needs a different mechanism
+rather than a caveat.

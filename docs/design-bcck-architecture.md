@@ -25,6 +25,36 @@ you cannot ask "what may this reach?" without reading a page of instructions.
 BCCK splits them into four concerns that can be declared, composed, and enforced
 separately.
 
+### 1.1 What is actually untrusted
+
+**The AI is the untrusted component.** Everything in §5 exists to contain it. The
+supervision layer is small, deterministic, and auditable precisely because the
+thing it supervises is none of those.
+
+This bounds what containment buys. Namespaces and cgroups constrain **reach**, not
+**correctness**. A perfectly contained agent, operating entirely within its
+grants, can still produce a wrong service file, a claim with a genuine commit hash
+attached to a wrong conclusion, or a packaging decision that is plausible and
+incorrect. Nothing in §3 or §5 detects any of that, because none of it is a
+violation — it is ordinary output that happens to be wrong.
+
+So the binding constraint on this system is not privilege or isolation. It is
+**human review capacity**, and an AI that produces artifacts faster makes careful
+review more expensive. The failure mode is not a breach; it is review quality
+degrading silently under volume until approval becomes rubber-stamping — at which
+point the promotion step in §3.2 is theatre and the Tarski structure protects
+nothing.
+
+Two design rules follow, and they outrank convenience:
+
+1. **Prefer artifacts whose correctness is checkable by something other than a
+   human reading prose.** This is the real reason the bus requires verifiable
+   evidence identifiers (§8.2) and the reason behavior sections are kept short
+   (§2.1): both make review cheap. Injection resistance is a secondary benefit.
+2. **Treat review capacity as a budget.** Fewer, larger, self-verifying artifacts
+   beat many small ones that each need a human pass. Volume is a cost, not a
+   throughput metric.
+
 ---
 
 ## 2. The four concepts

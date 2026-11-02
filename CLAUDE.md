@@ -24,6 +24,23 @@ knowledge/     Shared per-package findings (archaeology, BTS, provenance) — se
 docs/          Design notes, decisions, provenance conventions
 ```
 
+## Design model: BCCK
+
+Everything in this repo is designed against four separated concerns — **Behavior,
+Capability, Connection, Knowledge** — specified in `docs/design-bcck-architecture.md`.
+Read it before designing a server, skill, or agent. The short version:
+
+- **Capability** = verbs (MCP tools). **Connection** = which resources those verbs may
+  address. **Knowledge** = durable provenanced facts. **Behavior** = policy, attached to
+  an agent as principal.
+- Behavior is the only non-composable part, so a long behavior section means capability
+  or knowledge has leaked into it.
+- **The Tarski rule:** an agent may not write its own knowledge, its own audit log, or
+  its own grants. Those are artifacts of the level above, enforced by mounts and tree
+  structure — not by prose in a prompt.
+- Authorization is never self-enforcing. An agent definition must compile down to real
+  scoping (which servers, which bindings, which uid, which namespace).
+
 ## Ground rules (engineering constraints, not suggestions)
 
 1. **Least privilege by default.** Scope every tool, account, and sudoers rule to the
